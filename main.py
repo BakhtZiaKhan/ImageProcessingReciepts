@@ -9,16 +9,69 @@ class ProcessReciept:
         self.image = cv2.imread(image)
         self.rgbImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.greyImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.kernels = [
+            np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]),
+            np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        ]
 
-    def sharepenImage(self, removedNoiseImage):
-        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    def enhanceDarkImage(self, image):
+        pass
 
-        sharpened_image = cv2.filter2D(removedNoiseImage, -1, kernel)
+    def enhanceBrightImage(self, image):
+        pass
 
-        return sharpened_image
+    def checkBestbrightnesss(self, image):
+        pass
+
+    def ocr_word_count(self, image):
+        # first use the orintation function to rotate the image to the best view vertical
+        # then use the output from that image to count how many word are visible
+
+        correctOrientation = self.orientation(image, self.rgbImage)
+
+        # then use pytesseract to count the words on the image
+        text = pytesseract.image_to_string(correctOrientation)
+        words = text.split()
+        # need to return the orientated image also
+        return len(words)
+
+    def checkWordCount(self, image):
+        # preform OCr on the original image for a base line
+        original_word_count = self.ocr_word_count(image)
+        print(f"Original Word Count: {original_word_count}")
+
+        # use different shparing kernels for best result
+        best_image = image  # Start with the original
+        best_word_count = original_word_count
+
+        for kernel in self.kernels:
+            # Apply sharpening kernel to the image
+            sharpened = cv2.filter2D(image, -1, kernel)
+
+            # Use ocr on the image to see if the sharpeing has any impact
+            sharpened_word_count = self.ocr_word_count(sharpened)
+            print(f"{kernel} Sharpened word count: {sharpened_word_count}")
+
+            # see if the sharpeing kernel has any impact
+            if sharpened_word_count > best_word_count:
+                best_word_count = sharpened_word_count
+                best_image = sharpened  # Update best image
+
+
+
+        # print(f"Best kernel: {best_image}")
+
+        return best_image
+
+    # def sharepenImage(self, removedNoiseImage):
+    #     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    #
+    #     sharpened_image = cv2.filter2D(removedNoiseImage, -1, kernel)
+    #
+    #     return sharpened_image
 
     def removingNoise(self, image):
-        filtered_image = cv2.GaussianBlur(image, (7, 7), 0)
+        filtered_image = cv2.fastNlMeansDenoising(image, None, 7, 7, 21)
 
         return filtered_image
 
@@ -85,16 +138,45 @@ class ProcessReciept:
 
         return rotatedImage
 
-    def exampleusage(self):
-        correctOrientation = self.orientation(self.image, self.rgbImage)
+    # def exampleusage(self):
+    #     correctOrientation = self.orientation(self.image, self.rgbImage)
+    #
+    #     cv2.imshow("CorrectedOrientation", correctOrientation)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
-        cv2.imshow("CorrectedOrientation", correctOrientation)
+    # def exampleusage(self):
+    #     removeNoise = self.removingNoise(self.image)
+    #
+    #     cv2.imshow("noise removal", removeNoise)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
+
+    def exampleusage(self):
+        shaprness = self.checkWordCount(self.image)
+
+        cv2.imshow("Sharpness best image", shaprness)
 
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+    # def exampleusage(self):
+    #     orient = self.orientation(self.image, self.rgbImage)
+    #
+    #     cv2.imshow("Best oreint", orient)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
 
 """Leave all below for example usage"""
 
 reciept = ProcessReciept("/Users/jonkehoe/PycharmProjects/ImageProcessingCollege/GroupAssignment/reditReciept.jpg")
 reciept.exampleusage()
+
+
+
+
+
