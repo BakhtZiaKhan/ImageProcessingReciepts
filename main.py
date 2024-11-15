@@ -15,10 +15,41 @@ class ProcessReciept:
         ]
 
     def enhanceDarkImage(self, image):
-        pass
+        ImageGamma = 1.5
+
+        newGamma = np.power(image / 255.0, ImageGamma)
+        newGamma = (newGamma * 255).astype(np.uint8)
+
+        # yuv of new gamma image
+        yuvImage = cv2.cvtColor(newGamma, cv2.COLOR_BGR2YUV)
+
+        # equalise the intensity which is the Y channel
+        yuvImage[ :, :, 0] = cv2.equalizeHist(yuvImage[ :, :, 0])
+
+        # convert image back to BGR colour space
+        enchancedImage = cv2.cvtColor(yuvImage, cv2.COLOR_YUV2BGR)
+
+        return enchancedImage
 
     def enhanceBrightImage(self, image):
-        pass
+        # aplha controls contrast and beta controls brightness
+        alpha = 1.5
+        beta = -10
+
+        # adjust the contrast and brightness of the image
+        adjustedImage = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+        # yuv of new gamma image
+        yuvImage = cv2.cvtColor(adjustedImage, cv2.COLOR_BGR2YUV)
+
+        # equalise the intensity which is the Y channel
+        yuvImage[:, :, 0] = cv2.equalizeHist(yuvImage[:, :, 0])
+
+        # convert image back to BGR colour space
+        enchancedImage = cv2.cvtColor(yuvImage, cv2.COLOR_YUV2BGR)
+
+        return enchancedImage
+
 
     def checkBestbrightnesss(self, image):
         pass
@@ -173,7 +204,7 @@ class ProcessReciept:
 
 """Leave all below for example usage"""
 
-reciept = ProcessReciept("/Users/jonkehoe/PycharmProjects/ImageProcessingCollege/GroupAssignment/reditReciept.jpg")
+reciept = ProcessReciept("")
 reciept.exampleusage()
 
 
