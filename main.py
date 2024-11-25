@@ -88,70 +88,84 @@ class ProcessReciept:
 
         return hsvImage
 
-    def imageThresholdingTextExtraction(self,):
-        #Apdative thresholding  
-       
-       #Adaptive mean Global
-        ret,th1 = cv2.threshold(self.greyImage,127,255,cv2.THRESH_BINARY)
-        th1 = cv2.bitwise_not(th1) #inverse colours
+    def imageThresholdingTextExtraction(self):
+        # Apply noise removal
+        print("Applying noise removal...")
+        denoised_image = self.removingNoise(self.greyImage)
+        cv2.imshow("Denoised Image", denoised_image)
         
-        #Adaptive mean thresh
-        th2 = cv2.adaptiveThreshold(self.greyImage,255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,11,2)
-        th2 = cv2.bitwise_not(th2) #inverse colours
-        
-        #Adaptive mean Gaussian
-        th3 = cv2.adaptiveThreshold(self.greyImage,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
-        th3 = cv2.bitwise_not(th3)#inverse colours
-       
-        cv2.imshow("Adaptive mean Global", th1)
-        cv2.imshow("Adaptive mean Thresh", th2)
-        cv2.imshow("Adaptive mean Gaussian", th3)
-       
-        cv2.waitKey(0)  # Wait for key press to close images
+        # Apply sharpening
+        print("Applying sharpening...")
+        sharpened_image = cv2.filter2D(denoised_image, -1, self.kernels[0])
+        cv2.imshow("Sharpened Image", sharpened_image)
+
+        # Apply thresholding methods
+        print("Applying thresholding methods...")
+        # Global Thresholding
+        _, global_thresh = cv2.threshold(sharpened_image, 127, 255, cv2.THRESH_BINARY)
+        global_thresh = cv2.bitwise_not(global_thresh)  # Invert colors for OCR
+        cv2.imshow("Global Thresholding", global_thresh)
+
+        # Adaptive Mean Thresholding
+        adaptive_mean_thresh = cv2.adaptiveThreshold(
+            sharpened_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 5
+        )
+        adaptive_mean_thresh = cv2.bitwise_not(adaptive_mean_thresh)  # Invert colors for OCR
+        cv2.imshow("Adaptive Mean Thresholding", adaptive_mean_thresh)
+
+        # Adaptive Gaussian Thresholding
+        adaptive_gaussian_thresh = cv2.adaptiveThreshold(
+            sharpened_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 5
+        )
+        adaptive_gaussian_thresh = cv2.bitwise_not(adaptive_gaussian_thresh)  # Invert colors for OCR
+        cv2.imshow("Adaptive Gaussian Thresholding", adaptive_gaussian_thresh)
+
+        # Run OCR on thresholded images
+        print("Running OCR on thresholded images...")
+        config = '--psm 6'  # OCR configuration for single block text
+        text_global = pytesseract.image_to_string(global_thresh, config=config)
+        text_adaptive_mean = pytesseract.image_to_string(adaptive_mean_thresh, config=config)
+        text_adaptive_gaussian = pytesseract.image_to_string(adaptive_gaussian_thresh, config=config)
+
+        # Print OCR results for each method
+        print("\nOCR Output for Global Thresholding:")
+        print(text_global)
+
+        print("\nOCR Output for Adaptive Mean Thresholding:")
+        print(text_adaptive_mean)
+
+        print("\nOCR Output for Adaptive Gaussian Thresholding:")
+        print(text_adaptive_gaussian)
+
+        # Calculate word counts for each method
+        word_count_global = len(text_global.split())
+        word_count_adaptive_mean = len(text_adaptive_mean.split())
+        word_count_adaptive_gaussian = len(text_adaptive_gaussian.split())
+
+        print("\nWord Counts:")
+        print(f"Global Thresholding Word Count: {word_count_global}")
+        print(f"Adaptive Mean Thresholding Word Count: {word_count_adaptive_mean}")
+        print(f"Adaptive Gaussian Thresholding Word Count: {word_count_adaptive_gaussian}")
+
+        # Determine the best thresholding method
+        word_counts = {
+            "Global Thresholding": (word_count_global, global_thresh),
+            "Adaptive Mean Thresholding": (word_count_adaptive_mean, adaptive_mean_thresh),
+            "Adaptive Gaussian Thresholding": (word_count_adaptive_gaussian, adaptive_gaussian_thresh),
+        }
+        best_method, (best_word_count, best_thresh_image) = max(word_counts.items(), key=lambda x: x[1][0])
+        print(f"\nBest thresholding method: {best_method} with word count {best_word_count}")
+
+        # Display the best thresholded image
+        cv2.imshow(f"Best Thresholded Image: {best_method}", best_thresh_image)
+
+        # Wait for user input and close windows
+        cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    
-       
-        # word kernel
-        rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (18, 18))
 
-        # apply dilation
-        dilation = cv2.dilate(th1, rect_kernel, iterations=1)
-        dilation = cv2.dilate(th2, rect_kernel, iterations=1)
-        dilation = cv2.dilate(th3, rect_kernel, iterations=1)
 
-        # find countors
-        contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL,
-                                               cv2.CHAIN_APPROX_NONE)
-        # create copy of image
-        im2 =self.image.copy()
 
-        # text file of extracted text
-        file = open("recognized.txt", "w+")
-        file.write("")
-        file.close()
-
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-
-            # Drawing a rectangle on copied image
-            rect = cv2.rectangle(im2, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-            # Cropping the text block for giving input to OCR
-            cropped = im2[y:y + h, x:x + w]
-
-            # Open the file in append mode
-            file = open("recognized.txt", "a")
-
-            # Apply OCR on the cropped image
-            text = pytesseract.image_to_string(cropped)
-
-            # Appending the text into file
-            file.write(text)
-            file.write("\n")
-
-            # Close the file
-            file.close()
 
     def orientation(self, image, rgbImgae):
         results = pytesseract.image_to_osd(rgbImgae, output_type=Output.DICT)
@@ -177,13 +191,19 @@ class ProcessReciept:
     #     cv2.destroyAllWindows()
 
     def exampleusage(self):
-        shaprness = self.checkWordCount(self.image)
+        print("Performing image thresholding and text extraction...")
         self.imageThresholdingTextExtraction()
 
+        print("Testing OCR with sharpening kernels...")
+        shaprness = self.checkWordCount(self.image)
+
+        # Display the best-sharpened image
         cv2.imshow("Sharpness best image", shaprness)
 
+        # Wait for key press and close all windows
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
 
     # def exampleusage(self):
     #     orient = self.orientation(self.image, self.rgbImage)
@@ -198,3 +218,8 @@ class ProcessReciept:
 
 reciept = ProcessReciept(r"C:\Users\bakht\Documents\ImageProcessingReciepts\images\Screenshot 2024-10-23 at 16.46.47.png")
 reciept.exampleusage()
+
+
+
+
+
