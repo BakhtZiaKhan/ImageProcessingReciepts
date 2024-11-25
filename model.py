@@ -3,6 +3,7 @@ import cv2
 import pytesseract
 from pytesseract import Output
 import numpy as np
+import matplotlib.pyplot as plt 
 
 
 class ProcessReciept:
@@ -11,7 +12,6 @@ class ProcessReciept:
         self.rgbImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.greyImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.kernels = [
-            np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]),
             np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         ]
         self.sharpenedValues = [0, 1, 2]
@@ -28,11 +28,13 @@ class ProcessReciept:
             # correction if image has already been rotated
             resultAngle = results.get("rotate", 0)
 
+            # error prevention if rotation angle is already 0
             if resultAngle != 0:
                 rotatedImage = imutils.rotate_bound(image, angle=resultAngle)
                 return rotatedImage
             return image
         except pytesseract.TesseractError as e:
+            # return image if rotation error
             print(f"Rotation failure: {e}")
             return image
 
@@ -51,7 +53,7 @@ class ProcessReciept:
                     for imageThresholdValue in self.imageThresholdValues:
                         for reduceNoiseValue in self.reduceNoiseValues:
 
-                            # now enhace the image based on each value
+                            # now enhance the image based on each value
                             imageEnhancement = imageEnhancment(
                                 cv2.cvtColor(correctRotation, cv2.COLOR_BGR2GRAY),
                                 sharpenedValue,
@@ -85,15 +87,16 @@ class ProcessReciept:
             if len(image.shape) == 2:
                 image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
-            # convert to YUV colour space to enhacment luminace
+            # convert to YUV colour space to enhance luminance
             yuvImage = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
             y, u, v = cv2.split(yuvImage)
 
+            # sharpen image based on input to kernel
             if sharpenedValue > 0:
                 kernel = np.array([[0, -1, 0], [-1, 5 + sharpenedValue, -1], [0, -1, 0]])
                 y = cv2.filter2D(y, -1, kernel)
 
-            # image brighness enhancment
+            # image brightness enhancement
             y = cv2.convertScaleAbs(y, alpha=imageContrastValue, beta=brightnessValue)
 
             # merge channels back together
@@ -121,6 +124,7 @@ class ProcessReciept:
             # need to return the orientated image also
             return len(words)
 
+        # call main function to find the best parameter
         enhancedImage, enhancedParams, enhancedWordCount = self.enhancemntParameters(
             addImageEnhanements,
             ocr_word_count
@@ -128,25 +132,41 @@ class ProcessReciept:
 
         # testing
         print(f"Words detected {enhancedWordCount}")
-        # enhancedParams = np.array(enhancedParams)
-        # sharpen, imageBrightness, imageContrast, reducedNoise, imageThreshold = np.split(enhancedParams)
-
-        # print(
-        #     f"Sharpened value: {sharpen}, Image brightness: {imageBrightness}, Image Contrast: {imageContrast}, Image noise reduction: {reducedNoise}, Image threshold: {imageThreshold}")
-
         return enhancedImage
 
     def exampleusage(self):
         imageEnhancement = self.adpativeImageEnhancement()
+        
+        text = pytesseract.image_to_string(imageEnhancement, config="--psm 6")
+        
+        print(f"Detected text: {text}")
 
-        cv2.imshow("Enhanced Image", imageEnhancement)
+        #cv2.imshow("Enhanced Image", imageEnhancement)
+        #cv2.imshow("Original Image", self.image)
 
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
+
+        plt.figure(figsize=(10, 5))
+
+        # Show the original image
+        plt.subplot(1, 2, 1)
+        plt.imshow(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
+        plt.title("Original Image")
+        plt.axis("off")
+
+        # Show the enhanced image
+        plt.subplot(1, 2, 2)
+        plt.imshow(cv2.cvtColor(imageEnhancement, cv2.COLOR_BGR2RGB))
+        plt.title("Enhanced Image")
+        plt.axis("off")
+
+        # Display the plots
+        plt.tight_layout()
+        plt.show()
 
 
 """Leave all below for example usage"""
 
-reciept = ProcessReciept("ImageProcessingReciepts/images/Screenshot 2024-10-23 at 16.35.57.png")
+reciept = ProcessReciept("/")
 reciept.exampleusage()
-
