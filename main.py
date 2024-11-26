@@ -93,32 +93,53 @@ class ProcessReciept:
         print("Applying noise removal...")
         denoised_image = self.removingNoise(self.greyImage)
         cv2.imshow("Denoised Image", denoised_image)
+
         
         # Apply sharpening
         print("Applying sharpening...")
         sharpened_image = cv2.filter2D(denoised_image, -1, self.kernels[0])
-        cv2.imshow("Sharpened Image", sharpened_image)
+       
+        
+        # Apply contrast adjustment
+        print("Enhancing contrast...")
+        contrast_enhanced = cv2.convertScaleAbs(sharpened_image, alpha=0.5, beta=10)
+        cv2.imshow("Contrast Enhanced Image", contrast_enhanced)
 
+
+    # Apply Gamma Correction
+        print("Applying gamma correction...")
+        gamma = 1  # Adjust gamma value as needed
+        inv_gamma = 1.0 / gamma
+        gamma_table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+        gamma_corrected = cv2.LUT(contrast_enhanced, gamma_table)
+        cv2.imshow("Gamma Corrected Image", gamma_corrected)
+
+        # Apply CLAHE
+        print("Applying CLAHE...")
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        clahe_image = clahe.apply(gamma_corrected)
+        cv2.imshow("CLAHE Image", clahe_image)
+    
         # Apply thresholding methods
         print("Applying thresholding methods...")
         # Global Thresholding
         _, global_thresh = cv2.threshold(sharpened_image, 127, 255, cv2.THRESH_BINARY)
         global_thresh = cv2.bitwise_not(global_thresh)  # Invert colors for OCR
-        cv2.imshow("Global Thresholding", global_thresh)
+       # cv2.imshow("Global Thresholding", global_thresh)
 
         # Adaptive Mean Thresholding
         adaptive_mean_thresh = cv2.adaptiveThreshold(
-            sharpened_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 5
+            clahe_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 5
         )
         adaptive_mean_thresh = cv2.bitwise_not(adaptive_mean_thresh)  # Invert colors for OCR
-        cv2.imshow("Adaptive Mean Thresholding", adaptive_mean_thresh)
+       # cv2.imshow("Adaptive Mean Thresholding", adaptive_mean_thresh)
 
         # Adaptive Gaussian Thresholding
         adaptive_gaussian_thresh = cv2.adaptiveThreshold(
             sharpened_image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 5
         )
         adaptive_gaussian_thresh = cv2.bitwise_not(adaptive_gaussian_thresh)  # Invert colors for OCR
-        cv2.imshow("Adaptive Gaussian Thresholding", adaptive_gaussian_thresh)
+       # cv2.imshow("Adaptive Gaussian Thresholding", adaptive_gaussian_thresh)
 
         # Run OCR on thresholded images
         print("Running OCR on thresholded images...")
@@ -162,9 +183,6 @@ class ProcessReciept:
         # Wait for user input and close windows
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-
-
-
 
 
     def orientation(self, image, rgbImgae):
@@ -216,7 +234,7 @@ class ProcessReciept:
 
 """Leave all below for example usage"""
 
-reciept = ProcessReciept(r"C:\Users\bakht\Documents\ImageProcessingReciepts\images\Screenshot 2024-10-23 at 16.46.47.png")
+reciept = ProcessReciept(r"C:\Users\bakht\Documents\ImageProcessingReciepts\images\Screenshot 2024-10-23 at 16.35.57.png")
 reciept.exampleusage()
 
 
