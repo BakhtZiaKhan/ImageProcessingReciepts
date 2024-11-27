@@ -108,7 +108,6 @@ class ProcessReciept:
 
              #Implement image thresholding
             if imageThreshold:
-                print("Applying adaptive thresholding...")
                 greyImage = cv2.cvtColor(enhancedImage, cv2.COLOR_BGR2GRAY)
                 enhancedImage = cv2.adaptiveThreshold(
                 greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
@@ -168,5 +167,5 @@ class ProcessReciept:
 
 """Leave all below for example usage"""
 # yes
-reciept = ProcessReciept(r"")
+reciept = ProcessReciept(r"C:\Users\bakht\Documents\ImageProcessingReciepts\images\reditReciept.jpg")
 reciept.exampleusage()
