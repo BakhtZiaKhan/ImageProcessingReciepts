@@ -3,8 +3,6 @@ import cv2
 import pytesseract
 from pytesseract import Output
 import numpy as np
-import matplotlib.pyplot as plt 
-
 
 class ProcessReciept:
     def __init__(self, image):
@@ -12,161 +10,250 @@ class ProcessReciept:
         self.rgbImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.greyImage = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.kernels = [
+            np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]),
             np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         ]
-        self.sharpenedValues = [0, 1, 2]
-        self.brightnessValues = [0, 50, 100]
-        self.imageContrastValues = [1.0, 1.5, 2.0]
-        self.reduceNoiseValues = [0, 15, 30]
-        self.imageThresholdValues = [True, False]
 
-    def orientation(self, image):
+    def enhanceDarkImage(self, image):
+        ImageGamma = 1.5
+
+        newGamma = np.power(image / 255.0, ImageGamma)
+        newGamma = (newGamma * 255).astype(np.uint8)
+
+        # yuv of new gamma image
+        yuvImage = cv2.cvtColor(newGamma, cv2.COLOR_BGR2YUV)
+
+        # equalise the intensity which is the Y channel
+        yuvImage[ :, :, 0] = cv2.equalizeHist(yuvImage[ :, :, 0])
+
+        # convert image back to BGR colour space
+        enchancedImage = cv2.cvtColor(yuvImage, cv2.COLOR_YUV2BGR)
+
+        return enchancedImage
+
+    def enhanceBrightImage(self, image):
+        # aplha controls contrast and beta controls brightness
+        alpha = 1.5
+        beta = -10
+
+        # adjust the contrast and brightness of the image
+        adjustedImage = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+        # yuv of new gamma image
+        yuvImage = cv2.cvtColor(adjustedImage, cv2.COLOR_BGR2YUV)
+
+        # equalise the intensity which is the Y channel
+        yuvImage[:, :, 0] = cv2.equalizeHist(yuvImage[:, :, 0])
+
+        # convert image back to BGR colour space
+        enchancedImage = cv2.cvtColor(yuvImage, cv2.COLOR_YUV2BGR)
+
+        return enchancedImage
+
+
+    def checkBestbrightnesss(self, image):
+        pass
+
+    def ocr_words(self, image):
+        # first use the orintation function to rotate the image to the best view vertical
+        # then use the output from that image to count how many word are visible
+        rgbImage = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        correctOrientation = self.orientation(image, rgbImage)
+
+        # then use pytesseract to extract the words from the image
+        text = pytesseract.image_to_string(correctOrientation)
+        words = text.split()
+        # need to return the orientated image also
+    
+        return words
+
+    def ocr_word_count(self, image):
+        # return count of words from ocr_words
+        words = self.ocr_words(image)
+        return len(words)
+
+    def checkWordCount(self, image):
+        # preform OCr on the original image for a base line
+        original_word_count = self.ocr_word_count(image)
+        print(f"Original Word Count: {original_word_count}")
+
+        # use different shparing kernels for best result
+        best_image = image  # Start with the original
+        best_word_count = original_word_count
+
+        for kernel in self.kernels:
+            # Apply sharpening kernel to the image
+            sharpened = cv2.filter2D(image, -1, kernel)
+
+            # Use ocr on the image to see if the sharpeing has any impact
+            sharpened_word_count, sharpened_text = self.ocr_word_count(sharpened)
+            print(f"Sharpened Word Count with Kernel {kernel.tolist()}: {sharpened_word_count}")
+
+            # see if the sharpeing kernel has any impact
+            if sharpened_word_count > best_word_count:
+                best_word_count = sharpened_word_count
+                best_image = sharpened  # Update best image
+
+
+
+        # print(f"Best kernel: {best_image}")
+
+        return best_image
+
+    def get_total_amount(self, scanned_strings):
+        def is_similar_to_total(word):
+            target = 'total'
+            word = word.lower()
+            m, n = len(target), len(word)
+            dp = [[0]*(n+1) for _ in range(m+1)]
+            for i in range(m):
+                for j in range(n):
+                    if target[i] == word[j]:
+                        dp[i+1][j+1] = dp[i][j] + 1
+                    else:
+                        dp[i+1][j+1] = max(dp[i][j+1], dp[i+1][j])
+            lcs_length = dp[m][n]
+            return lcs_length >= 4
+
+        # Convert all strings to lowercase for case-insensitive comparison
+        lower_strings = [s.lower() for s in scanned_strings]
         try:
-            # pytesseract image rotation calculation
-            results = pytesseract.image_to_osd(image, output_type=Output.DICT)
+            # Find index of word similar to 'total'
+            total_index = next(i for i, s in enumerate(lower_strings) if is_similar_to_total(s))
+            # Start from the index after 'total'
+            for s in scanned_strings[total_index+1:]:
+                if any(c.isdigit() for c in s):
+                    return s
+            # If 'total' is found but no number after it, return "no total found"
+            return "no total found"
+        except StopIteration:
+            # 'total' not found, return last string containing a number
+            for s in reversed(scanned_strings):
+                if any(c.isdigit() for c in s):
+                    return s
+            # If no numbers found, return "no total found"
+            return "no total found"
 
-            # correction if image has already been rotated
-            resultAngle = results.get("rotate", 0)
 
-            # error prevention if rotation angle is already 0
-            if resultAngle != 0:
-                rotatedImage = imutils.rotate_bound(image, angle=resultAngle)
-                return rotatedImage
-            return image
-        except pytesseract.TesseractError as e:
-            # return image if rotation error
-            print(f"Rotation failure: {e}")
-            return image
+    # def sharepenImage(self, removedNoiseImage):
+    #     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    #
+    #     sharpened_image = cv2.filter2D(removedNoiseImage, -1, kernel)
+    #
+    #     return sharpened_image
 
-    def enhancemntParameters(self, imageEnhancment, OCRWordCount):
-        # call orientation on image to ensure valid text OCR
-        correctRotation = self.orientation(self.rgbImage)
+    def removingNoise(self, image):
+        filtered_image = cv2.fastNlMeansDenoising(image, None, 7, 7, 21)
 
-        enhancedWordCount = 0
-        enhancedImage = None
-        enhancedParams = {}
+        return filtered_image
 
-        # loop through each parameter for different combinations
-        for sharpenedValue in self.sharpenedValues:
-            for brightnessValue in self.brightnessValues:
-                for imageContrastValue in self.imageContrastValues:
-                    for imageThresholdValue in self.imageThresholdValues:
-                        for reduceNoiseValue in self.reduceNoiseValues:
+    def enhancingImage(self, sharpenedImage):
+        # convert image to hsv
+        hsvImage = cv2.cvtColor(sharpenedImage, cv2.COLOR_RGB2HSV)
 
-                            # now enhance the image based on each value
-                            imageEnhancement = imageEnhancment(
-                                cv2.cvtColor(correctRotation, cv2.COLOR_BGR2GRAY),
-                                sharpenedValue,
-                                brightnessValue,
-                                imageContrastValue,
-                                reduceNoiseValue,
-                                imageThresholdValue
-                            )
+        # Adjusts the hue by multiplying it by 0.7
+        hsvImage[:, :, 0] = hsvImage[:, :, 0] * 0.7
+        # Adjusts the saturation by multiplying it by 1.5
+        hsvImage[:, :, 1] = hsvImage[:, :, 1] * 1.5
+        # Adjusts the value by multiplying it by 0.5
+        hsvImage[:, :, 2] = hsvImage[:, :, 2] * 0.5
 
-                            # test new parameters for word count
-                            enhancedCount = OCRWordCount(imageEnhancement)
+        return hsvImage
 
-                            # if word count is better then update parameters
-                            if enhancedCount > enhancedWordCount:
-                                enhancedWordCount = enhancedCount
-                                enhancedImage = imageEnhancement
-                                enhancedParams = {
-                                    sharpenedValue,
-                                    brightnessValue,
-                                    imageContrastValue,
-                                    reduceNoiseValue,
-                                    imageThresholdValue
-                                }
-        return enhancedImage, enhancedParams, enhancedWordCount
+    def imageThresholdingTextExtraction(self, image, greyImage):
+        # OSU thresholding
+        ret, thresh1 = cv2.threshold(greyImage, 0, 255, cv2.THRESH_OTSU | cv2.THRESH_BINARY_INV)
 
-    def adpativeImageEnhancement(self):
+        # word kernel
+        rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (18, 18))
 
-        def addImageEnhanements(image, sharpenedValue, brightnessValue, imageContrastValue, reduceNoiseValue, imageThreshold):
+        # apply dilation
+        dilation = cv2.dilate(thresh1, rect_kernel, iterations=1)
 
-            # make sure that the input image has three colour channels
-            if len(image.shape) == 2:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        # find countors
+        contours, hierarchy = cv2.findContours(dilation, cv2.RETR_EXTERNAL,
+                                               cv2.CHAIN_APPROX_NONE)
+        # create copy of image
+        im2 = image.copy()
 
-            # convert to YUV colour space to enhance luminance
-            yuvImage = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-            y, u, v = cv2.split(yuvImage)
+        # text file of extracted text
+        file = open("recognized.txt", "w+")
+        file.write("")
+        file.close()
 
-            # sharpen image based on input to kernel
-            if sharpenedValue > 0:
-                kernel = np.array([[0, -1, 0], [-1, 5 + sharpenedValue, -1], [0, -1, 0]])
-                y = cv2.filter2D(y, -1, kernel)
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
 
-            # image brightness enhancement
-            y = cv2.convertScaleAbs(y, alpha=imageContrastValue, beta=brightnessValue)
+            # Drawing a rectangle on copied image
+            rect = cv2.rectangle(im2, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-            # merge channels back together
-            yuvEnhancedImage = cv2.merge([y, u, v])
-            enhancedImage = cv2.cvtColor(yuvEnhancedImage, cv2.COLOR_YUV2BGR)
+            # Cropping the text block for giving input to OCR
+            cropped = im2[y:y + h, x:x + w]
 
-            # image noise reduction
-            if reduceNoiseValue > 0:
-                enhancedImage = cv2.fastNlMeansDenoising(enhancedImage, None, reduceNoiseValue, 7, 21)
+            # Open the file in append mode
+            file = open("recognized.txt", "a")
 
-            # TODO Bakht implement image thresholding
-            if imageThreshold:
-                greyImage = cv2.cvtColor(enhancedImage, cv2.COLOR_BGR2GRAY)
-                enhancedImage = cv2.adaptiveThreshold(
-                    greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-                )
+            # Apply OCR on the cropped image
+            text = pytesseract.image_to_string(cropped)
 
-            return enhancedImage
+            # Appending the text into file
+            file.write(text)
+            file.write("\n")
 
-        def ocr_word_count(image):
+            # Close the file
+            file.close()
 
-            # then use pytesseract to count the words on the image
-            text = pytesseract.image_to_string(image, config="--psm 6")
-            words = text.split()
-            # need to return the orientated image also
-            return len(words)
+    def orientation(self, image, rgbImgae):
+        results = pytesseract.image_to_osd(rgbImgae, output_type=Output.DICT)
 
-        # call main function to find the best parameter
-        enhancedImage, enhancedParams, enhancedWordCount = self.enhancemntParameters(
-            addImageEnhanements,
-            ocr_word_count
-        )
+        rotatedImage = imutils.rotate_bound(image, angle=results["rotate"])
 
-        # testing
-        print(f"Words detected {enhancedWordCount}")
-        return enhancedImage
+        return rotatedImage
 
+    # def exampleusage(self):
+    #     correctOrientation = self.orientation(self.image, self.rgbImage)
+    #
+    #     cv2.imshow("CorrectedOrientation", correctOrientation)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
+
+    # def exampleusage(self):
+    #     removeNoise = self.removingNoise(self.image)
+    #
+    #     cv2.imshow("noise removal", removeNoise)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
+    
     def exampleusage(self):
-        imageEnhancement = self.adpativeImageEnhancement()
-        
-        text = pytesseract.image_to_string(imageEnhancement, config="--psm 6")
-        
-        print(f"Detected text: {text}")
-
-        #cv2.imshow("Enhanced Image", imageEnhancement)
-        #cv2.imshow("Original Image", self.image)
+        #sharpened = self.sharpenBestKernel(self.image)
+        words = self.ocr_words(self.image)
+        print(len(words))
+        denoised = self.removingNoise(self.image)
+        new_count = self.ocr_word_count(denoised)
+        #print(new_count)
+        #print("Estimated total:", self.get_total_amount(words))
+        #cv2.imshow("Sharpness best image", shaprness)
 
         #cv2.waitKey(0)
         #cv2.destroyAllWindows()
 
-        plt.figure(figsize=(10, 5))
-
-        # Show the original image
-        plt.subplot(1, 2, 1)
-        plt.imshow(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
-        plt.title("Original Image")
-        plt.axis("off")
-
-        # Show the enhanced image
-        plt.subplot(1, 2, 2)
-        plt.imshow(cv2.cvtColor(imageEnhancement, cv2.COLOR_BGR2RGB))
-        plt.title("Enhanced Image")
-        plt.axis("off")
-
-        # Display the plots
-        plt.tight_layout()
-        plt.show()
+    # def exampleusage(self):
+    #     orient = self.orientation(self.image, self.rgbImage)
+    #
+    #     cv2.imshow("Best oreint", orient)
+    #
+    #     cv2.waitKey(0)
+    #     cv2.destroyAllWindows()
 
 
 """Leave all below for example usage"""
 
-reciept = ProcessReciept("/")
-reciept.exampleusage()
+image_files = ["image1.png", "image3.png", 
+               "image5.png", "image6.png", 
+               "image7.png", "image8.png", 
+               "image9.png", "image13.png"]
+for file_name in image_files:
+    reciept = ProcessReciept(file_name)
+    reciept.exampleusage()
