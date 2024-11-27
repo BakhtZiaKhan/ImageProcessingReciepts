@@ -106,12 +106,13 @@ class ProcessReciept:
             if reduceNoiseValue > 0:
                 enhancedImage = cv2.fastNlMeansDenoising(enhancedImage, None, reduceNoiseValue, 7, 21)
 
-            # TODO Bakht implement image thresholding
+             #Implement image thresholding
             if imageThreshold:
+                print("Applying adaptive thresholding...")
                 greyImage = cv2.cvtColor(enhancedImage, cv2.COLOR_BGR2GRAY)
                 enhancedImage = cv2.adaptiveThreshold(
-                    greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-                )
+                greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
 
             return enhancedImage
 
@@ -167,5 +168,5 @@ class ProcessReciept:
 
 """Leave all below for example usage"""
 # yes
-reciept = ProcessReciept("")
+reciept = ProcessReciept(r"")
 reciept.exampleusage()
