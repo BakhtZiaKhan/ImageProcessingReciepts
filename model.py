@@ -3,7 +3,7 @@ import cv2
 import pytesseract
 from pytesseract import Output
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 
 
 class ProcessReciept:
@@ -14,10 +14,10 @@ class ProcessReciept:
         self.kernels = [
             np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
         ]
-        self.sharpenedValues = [0, 1, 2]
-        self.brightnessValues = [0, 50, 100]
-        self.imageContrastValues = [1.0, 1.5, 2.0]
-        self.reduceNoiseValues = [0, 15, 30]
+        self.sharpenedValues = [5, 7, 8, 11]
+        self.brightnessValues = [0, 50, 100, 150]
+        self.imageContrastValues = [1.0, 1.5, 2.0, 2.2]
+        self.reduceNoiseValues = [0, 15, 30, 45]
         self.imageThresholdValues = [True, False]
 
     def orientation(self, image):
@@ -26,11 +26,11 @@ class ProcessReciept:
             results = pytesseract.image_to_osd(image, output_type=Output.DICT)
 
             # correction if image has already been rotated
-            resultAngle = results.get("rotate", 0)
+            angle = results["rotate"]
 
             # error prevention if rotation angle is already 0
-            if resultAngle != 0:
-                rotatedImage = imutils.rotate_bound(image, angle=resultAngle)
+            if angle != 0:
+                rotatedImage = imutils.rotate_bound(image, angle)
                 return rotatedImage
             return image
         except pytesseract.TesseractError as e:
@@ -40,10 +40,11 @@ class ProcessReciept:
 
     def enhancemntParameters(self, imageEnhancment, OCRWordCount):
         # call orientation on image to ensure valid text OCR
-        correctRotation = self.orientation(self.rgbImage)
+        correctRotation = self.orientation(self.image)
 
-        enhancedWordCount = 0
-        enhancedImage = None
+        originalImageWordCount = OCRWordCount(correctRotation)
+        enhancedWordCount = originalImageWordCount
+        enhancedImage = correctRotation
         enhancedParams = {}
 
         # loop through each parameter for different combinations
@@ -55,7 +56,7 @@ class ProcessReciept:
 
                             # now enhance the image based on each value
                             imageEnhancement = imageEnhancment(
-                                cv2.cvtColor(correctRotation, cv2.COLOR_BGR2GRAY),
+                                correctRotation,
                                 sharpenedValue,
                                 brightnessValue,
                                 imageContrastValue,
@@ -81,11 +82,8 @@ class ProcessReciept:
 
     def adpativeImageEnhancement(self):
 
-        def addImageEnhanements(image, sharpenedValue, brightnessValue, imageContrastValue, reduceNoiseValue, imageThreshold):
-
-            # make sure that the input image has three colour channels
-            if len(image.shape) == 2:
-                image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        def addImageEnhanements(image, sharpenedValue, brightnessValue, imageContrastValue, reduceNoiseValue,
+                                imageThreshold):
 
             # convert to YUV colour space to enhance luminance
             yuvImage = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
@@ -95,6 +93,7 @@ class ProcessReciept:
             if sharpenedValue > 0:
                 kernel = np.array([[0, -1, 0], [-1, 5 + sharpenedValue, -1], [0, -1, 0]])
                 y = cv2.filter2D(y, -1, kernel)
+
 
             # image brightness enhancement
             y = cv2.convertScaleAbs(y, alpha=imageContrastValue, beta=brightnessValue)
@@ -136,22 +135,22 @@ class ProcessReciept:
 
     def exampleusage(self):
         imageEnhancement = self.adpativeImageEnhancement()
-        
+
         text = pytesseract.image_to_string(imageEnhancement, config="--psm 6")
-        
+
         print(f"Detected text: {text}")
 
-        #cv2.imshow("Enhanced Image", imageEnhancement)
-        #cv2.imshow("Original Image", self.image)
+        # cv2.imshow("Enhanced Image", imageEnhancement)
+        # cv2.imshow("Original Image", self.image)
 
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
         plt.figure(figsize=(10, 5))
 
         # Show the original image
         plt.subplot(1, 2, 1)
-        plt.imshow(cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB))
+        plt.imshow(self.image)
         plt.title("Original Image")
         plt.axis("off")
 
@@ -167,6 +166,7 @@ class ProcessReciept:
 
 
 """Leave all below for example usage"""
-
-reciept = ProcessReciept("/")
+# yes
+reciept = ProcessReciept("")
 reciept.exampleusage()
+
