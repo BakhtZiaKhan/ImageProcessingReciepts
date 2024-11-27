@@ -109,11 +109,16 @@ class ProcessReciept:
 
             # TODO Bakht implement image thresholding
             if imageThreshold:
+                print("Applying adaptive thresholding...")
                 greyImage = cv2.cvtColor(enhancedImage, cv2.COLOR_BGR2GRAY)
                 enhancedImage = cv2.adaptiveThreshold(
-                    greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-                )
-
+                greyImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+                # Save thresholded image for debugging
+                debug_filename = f"thresholded_sharpen_{sharpenedValue}_brightness_{brightnessValue}_contrast_{imageContrastValue}.png"
+                cv2.imwrite(debug_filename, enhancedImage)
+               
+                print(f"Thresholded image saved as {debug_filename}")
             return enhancedImage
 
         def ocr_word_count(image):
@@ -133,6 +138,8 @@ class ProcessReciept:
         # testing
         print(f"Words detected {enhancedWordCount}")
         return enhancedImage
+
+
 
     def exampleusage(self):
         imageEnhancement = self.adpativeImageEnhancement()
@@ -168,5 +175,5 @@ class ProcessReciept:
 
 """Leave all below for example usage"""
 
-reciept = ProcessReciept("/")
+reciept = ProcessReciept(r"C:\Users\bakht\Documents\ImageProcessingReciepts\images\Screenshot 2024-10-23 at 16.46.26.png")
 reciept.exampleusage()
